@@ -1,5 +1,7 @@
 # Tournament Bracket Generator
 
+![Tournament Bracket Generator](preview.png)
+
 A double-elimination bracket generator for tournaments of any size. Enter player names, shuffle, and run through the bracket stage by stage.
 
 ## Features
@@ -166,3 +168,6 @@ For very large $N$ (above ~16) or when scheduling simplicity matters more than e
 ### Summary
 
 The partition rule decomposes any $M \geq 2$ into heats of 4, 3, and 2 with zero byes, using a single lookup table indexed by $M \bmod 4$. Combined with double elimination (WB/LB structure), this produces a universal tournament format that works for every $N \geq 4$, guarantees every player participates at least two times, and requires no special-case routing or scheduling.
+
+#### AI Disclosure statement
+I used `Claude Opus 4.6` to design and implement the code for the bracket generator in this repository, as well as its html design. I used gemini (nano banana) to generate the image for the README and thumbnails.
