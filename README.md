@@ -12,7 +12,7 @@ A double-elimination bracket generator for tournaments of any size. Enter player
 
 ## You can
 
-**Open it locally.** Clone this repo and open `main.html` in any modern browser (Chrome, Firefox, Safari, Edge). It loads React from a CDN on first open, so an internet connection is needed the first time.
+**Open it locally.** Clone this repo and open `index.html` in any modern browser (Chrome, Firefox, Safari, Edge). It loads React from a CDN on first open, so an internet connection is needed the first time.
 
 **Host it or visit the associated webapp for this repo.** 
 
