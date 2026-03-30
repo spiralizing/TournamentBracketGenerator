@@ -322,7 +322,7 @@ function HeatCard({ heat, bracket, selections, onToggle, neonColor }) {
         <span>
           {bracket} •{" "}
           <span style={{ color: sizeColors[heat.size] || neonColor }}>{heat.size}P</span>
-          {" "}Heat
+          {" "}Match
         </span>
         <span style={{ color: "#aaa", fontFamily: "Rajdhani", letterSpacing: 0, fontSize: 12 }}>
           Top {maxSel} advance{heat.size === 3 ? " · 1 drops" : ""}
@@ -526,7 +526,7 @@ function TournamentBracketGenerator() {
                   if (h4) parts.push(`${h4}×4P`);
                   if (h3) parts.push(`${h3}×3P`);
                   if (h2) parts.push(`${h2}×2P`);
-                  return <span>R1 heats: {parts.join(" + ")} · 0 byes</span>;
+                  return <span>R1 matches: {parts.join(" + ")} · 0 byes</span>;
                 })()}
               </div>
             )}
@@ -541,7 +541,7 @@ function TournamentBracketGenerator() {
               }}>🏁 GENERATE BRACKET</button>
             </div>
             <div style={{ marginTop: 14, fontSize: 13, color: "#666", textAlign: "center" }}>
-              Double elimination · Heats of 2, 3, or 4 · Zero byes · Everyone plays at least twice
+              Double elimination · Matches of 2, 3, or 4 · Zero byes · Everyone plays at least twice
             </div>
           </div>
         )}
@@ -560,7 +560,7 @@ function TournamentBracketGenerator() {
             <div style={{
               textAlign: "center", fontFamily: "Rajdhani", fontSize: 13,
               color: "#666", marginBottom: 20,
-            }}>Select the top finishers in each heat, then advance</div>
+            }}>Select the top finishers in each match, then advance</div>
 
             {wbHeats.length > 0 && (
               <div style={{ marginBottom: 20 }}>
