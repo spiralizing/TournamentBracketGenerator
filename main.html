@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tournament Bracket Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #05000d;
+        }
+
+        @keyframes twinkle {
+
+            0%,
+            100% {
+                opacity: .3
+            }
+
+            50% {
+                opacity: 1
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1)
+            }
+
+            50% {
+                transform: scale(1.04)
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        @keyframes glowPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 6px var(--gc), 0 0 12px var(--gc)
+            }
+
+            50% {
+                box-shadow: 0 0 12px var(--gc), 0 0 24px var(--gc)
+            }
+        }
+
+        .scroll-bracket::-webkit-scrollbar {
+            height: 6px
+        }
+
+        .scroll-bracket::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 3px
+        }
+
+        .scroll-bracket::-webkit-scrollbar-thumb {
+            background: #b44aff66;
+            border-radius: 3px
+        }
+    </style>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;600;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+const { useState, useMemo, useRef, useEffect } = React;
+
+const NEON = {
+  magenta: "#ff00ff", cyan: "#00ffff", lime: "#39ff14", yellow: "#ffe600",
+  orange: "#ff6600", pink: "#ff0066", purple: "#b44aff", mint: "#00ff7f",
+};
+const glow = (c, s = 8) => `0 0 ${s}px ${c}, 0 0 ${s * 2}px ${c}44`;
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+let heatCounter = 0;
+function partition(players) {
+  const n = players.length;
+  if (n < 2) return { heats: [] };
+  const heats = [];
+  let idx = 0;
+  const mod = n % 4;
+  if (mod === 1 || mod === 3) {
+    heats.push({ players: players.slice(idx, idx + 3), size: 3, id: `h${++heatCounter}` });
+    idx += 3;
+  }
+  if (mod === 1 || mod === 2) {
+    heats.push({ players: players.slice(idx, idx + 2), size: 2, id: `h${++heatCounter}` });
+    idx += 2;
+  }
+  while (idx < n) {
+    heats.push({ players: players.slice(idx, idx + 4), size: 4, id: `h${++heatCounter}` });
+    idx += 4;
+  }
+  return { heats };
+}
+
+function partitionCount(n) {
+  if (n < 2) return { heats: [] };
+  const heats = [];
+  let rem = n;
+  const mod = n % 4;
+  if (mod === 1 || mod === 3) { heats.push(3); rem -= 3; }
+  if (mod === 1 || mod === 2) { heats.push(2); rem -= 2; }
+  while (rem >= 4) { heats.push(4); rem -= 4; }
+  return { heats };
+}
+
+function simulateBracket(n) {
+  const stages = [];
+  let wbPool = n, nextLb = 0, wbDone = false;
+  for (let i = 0; i < 30; i++) {
+    const stg = { wb: null, lb: null };
+    const curLb = nextLb;
+    let wbDrops = 0, lbSurv = 0;
+    if (!wbDone && wbPool >= 2) {
+      const p = partitionCount(wbPool);
+      const adv = p.heats.reduce((s, h) => s + Math.ceil(h / 2), 0);
+      wbDrops = wbPool - adv;
+      stg.wb = { pool: wbPool, heats: p.heats };
+      wbPool = adv;
+      if (wbPool <= 1) wbDone = true;
+    }
+    if (curLb >= 2) {
+      const p = partitionCount(curLb);
+      lbSurv = p.heats.reduce((s, h) => s + Math.ceil(h / 2), 0);
+      stg.lb = { pool: curLb, heats: p.heats };
+    } else {
+      lbSurv = curLb;
+    }
+    nextLb = lbSurv + wbDrops;
+    if (stg.wb || stg.lb) stages.push(stg);
+    if (wbDone && nextLb <= 1) break;
+  }
+  stages.push({ gf: true });
+  return stages;
+}
+
+function Stars() {
+  const stars = useMemo(() =>
+    Array.from({ length: 70 }, (_, i) => ({
+      l: `${Math.random() * 100}%`, t: `${Math.random() * 100}%`,
+      s: Math.random() * 2.5 + 0.5, d: `${Math.random() * 4}s`,
+      dur: `${2 + Math.random() * 3}s`,
+      c: [NEON.cyan, NEON.magenta, NEON.yellow, NEON.mint, "#fff"][Math.floor(Math.random() * 5)],
+    })), []);
+  return (
+    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }}>
+      {stars.map((s, i) => (
+        <div key={i} style={{
+          position: "absolute", left: s.l, top: s.t, width: s.s, height: s.s,
+          borderRadius: "50%", background: s.c, boxShadow: `0 0 ${s.s * 3}px ${s.c}`,
+          animation: `twinkle ${s.dur} ease-in-out ${s.d} infinite`,
+        }} />
+      ))}
+    </div>
+  );
+}
+
+function BracketDiagram({ shape, history, currentIdx, phase }) {
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const idx = Math.min(currentIdx, scrollRef.current.children.length - 1);
+    const col = scrollRef.current.children[idx];
+    if (col) col.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [currentIdx]);
+
+  return (
+    <div style={{
+      background: "rgba(5,0,15,0.7)", border: `1px solid ${NEON.purple}33`,
+      borderRadius: 12, padding: "12px 8px", marginBottom: 20, boxShadow: glow(NEON.purple, 4),
+    }}>
+      <div style={{
+        fontFamily: "Orbitron", fontSize: 10, color: NEON.purple,
+        letterSpacing: 3, marginBottom: 8, textAlign: "center",
+      }}>BRACKET OVERVIEW</div>
+      <div className="scroll-bracket" ref={scrollRef} style={{
+        display: "flex", gap: 6, overflowX: "auto", padding: "4px 2px 8px",
+        alignItems: "flex-start",
+      }}>
+        {shape.map((stg, si) => {
+          const isCurrent = si === currentIdx && (phase === "tournament" || (phase === "grandFinal" && stg.gf));
+          const isPast = phase === "complete" ? true : si < currentIdx;
+          let borderColor = NEON.purple + "44";
+          if (isCurrent) borderColor = NEON.yellow;
+          else if (isPast) borderColor = NEON.lime + "55";
+          const resolved = history[si];
+          return (
+            <div key={si} style={{
+              minWidth: stg.gf ? 66 : 94, flex: "0 0 auto",
+              background: isCurrent ? `${NEON.yellow}08` : "rgba(10,0,25,0.6)",
+              border: `1.5px solid ${borderColor}`, borderRadius: 8, padding: "6px 6px 8px",
+              "--gc": isCurrent ? NEON.yellow : "transparent",
+              animation: isCurrent ? "glowPulse 2s ease-in-out infinite" : "none",
+            }}>
+              <div style={{
+                fontFamily: "Orbitron", fontSize: 9, textAlign: "center",
+                color: isCurrent ? NEON.yellow : isPast ? NEON.lime : "#666",
+                letterSpacing: 2, marginBottom: 5,
+              }}>
+                {stg.gf ? "GF" : `S${si + 1}`}{isCurrent && " ◀"}
+              </div>
+              {stg.gf ? (
+                <div style={{
+                  border: `1px solid ${NEON.yellow}55`, borderRadius: 5,
+                  padding: "4px 6px", fontSize: 9, fontFamily: "Orbitron",
+                  color: isPast ? NEON.yellow : "#555", textAlign: "center",
+                  background: isPast ? `${NEON.yellow}11` : "transparent",
+                }}>🏆<div style={{ fontSize: 8, marginTop: 2 }}>FINAL</div></div>
+              ) : (
+                <>
+                  {stg.wb && <DiagramSection label="WB" color={NEON.cyan}
+                    heats={stg.wb.heats} resolved={resolved?.wb} isPast={isPast} />}
+                  {stg.lb && <DiagramSection label="LB" color={NEON.magenta}
+                    heats={stg.lb.heats} resolved={resolved?.lb} isPast={isPast} />}
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DiagramSection({ label, color, heats, resolved, isPast }) {
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <div style={{
+        fontFamily: "Orbitron", fontSize: 7, color, letterSpacing: 1.5, marginBottom: 3, opacity: 0.8,
+      }}>{label}</div>
+      {heats.map((size, hi) => {
+        const rH = resolved?.heats?.[hi];
+        return (
+          <div key={hi} style={{
+            border: `1px solid ${isPast ? color + "44" : color + "22"}`,
+            borderRadius: 4, padding: "2px 4px", marginBottom: 2,
+            background: isPast ? `${color}08` : "transparent", fontFamily: "Rajdhani",
+          }}>
+            {rH ? rH.players.map((p, pi) => (
+              <div key={pi} style={{
+                color: rH.advancers.includes(p) ? NEON.lime : "#555",
+                fontSize: 8, lineHeight: 1.3,
+                fontWeight: rH.advancers.includes(p) ? 700 : 400,
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 82,
+              }}>
+                {rH.advancers.includes(p) ? "▸" : "·"} {p}
+              </div>
+            )) : (
+              <div style={{ color: "#444", fontSize: 8, textAlign: "center" }}>{size}P</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function HeatCard({ heat, bracket, selections, onToggle, neonColor }) {
+  const maxSel = Math.ceil(heat.players.length / 2);
+  const sel = selections[heat.id] || [];
+  const sizeColors = { 4: NEON.cyan, 3: NEON.orange, 2: NEON.pink };
+  return (
+    <div style={{
+      background: "rgba(10,0,30,0.85)", border: `2px solid ${neonColor}55`,
+      borderRadius: 12, padding: "14px 16px", marginBottom: 12,
+      boxShadow: glow(neonColor, 6), animation: "fadeIn 0.4s ease-out",
+    }}>
+      <div style={{
+        fontFamily: "Orbitron", fontSize: 11, color: neonColor, letterSpacing: 2,
+        marginBottom: 8, textTransform: "uppercase", display: "flex",
+        justifyContent: "space-between", alignItems: "center",
+      }}>
+        <span>
+          {bracket} •{" "}
+          <span style={{ color: sizeColors[heat.size] || neonColor }}>{heat.size}P</span>
+          {" "}Heat
+        </span>
+        <span style={{ color: "#aaa", fontFamily: "Rajdhani", letterSpacing: 0, fontSize: 12 }}>
+          Top {maxSel} advance{heat.size === 3 ? " · 1 drops" : ""}
+        </span>
+      </div>
+      {heat.players.map(p => {
+        const on = sel.includes(p);
+        return (
+          <button key={p} onClick={() => onToggle(heat.id, p, maxSel)} style={{
+            display: "block", width: "100%", padding: "10px 14px", marginBottom: 4,
+            background: on ? `linear-gradient(90deg,${NEON.lime}22,${NEON.lime}11)` : "rgba(255,255,255,0.03)",
+            border: `1.5px solid ${on ? NEON.lime : "rgba(255,255,255,0.1)"}`,
+            borderRadius: 8, color: on ? NEON.lime : "#ccc",
+            fontFamily: "Rajdhani", fontSize: 16, fontWeight: on ? 700 : 400,
+            cursor: "pointer", textAlign: "left", transition: "all 0.2s",
+            boxShadow: on ? glow(NEON.lime, 4) : "none",
+          }}>
+            {on ? "★ " : "○ "}{p}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function PlayerList({ title, players, color, icon }) {
+  if (!players.length) return null;
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontFamily: "Orbitron", fontSize: 11, color, letterSpacing: 2, marginBottom: 6 }}>{title}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {players.map(p => (
+          <span key={p} style={{
+            background: `${color}15`, border: `1px solid ${color}44`, borderRadius: 6,
+            padding: "4px 10px", fontFamily: "Rajdhani", fontSize: 13, color,
+          }}>{icon} {p}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TournamentBracketGenerator() {
+  const [nameInput, setNameInput] = useState("");
+  const [phase, setPhase] = useState("input");
+  const [eliminated, setEliminated] = useState([]);
+  const [wbChamp, setWbChamp] = useState(null);
+  const [lbChamp, setLbChamp] = useState(null);
+  const [wbHeats, setWbHeats] = useState([]);
+  const [lbHeats, setLbHeats] = useState([]);
+  const [selections, setSelections] = useState({});
+  const [stageNum, setStageNum] = useState(0);
+  const [champion, setChampion] = useState(null);
+  const [gfSel, setGfSel] = useState(null);
+  const [bracketShape, setBracketShape] = useState([]);
+  const [stageHistory, setStageHistory] = useState([]);
+  const [currentStageIdx, setCurrentStageIdx] = useState(0);
+
+  function startTournament() {
+    const names = nameInput.split("\n").map(s => s.trim()).filter(Boolean);
+    const unique = [...new Set(names)];
+    if (unique.length < 4) return;
+    heatCounter = 0;
+    const shuffled = shuffle(unique);
+    const shape = simulateBracket(unique.length);
+    setBracketShape(shape);
+    setStageHistory([]);
+    setCurrentStageIdx(0);
+    const { heats } = partition(shuffled);
+    setEliminated([]); setWbChamp(null); setLbChamp(null);
+    setWbHeats(heats); setLbHeats([]);
+    setSelections({}); setStageNum(1); setChampion(null); setGfSel(null);
+    setPhase("tournament");
+  }
+
+  function toggleSel(heatId, player, maxSel) {
+    setSelections(prev => {
+      const cur = prev[heatId] || [];
+      if (cur.includes(player)) return { ...prev, [heatId]: cur.filter(p => p !== player) };
+      if (cur.length < maxSel) return { ...prev, [heatId]: [...cur, player] };
+      return prev;
+    });
+  }
+
+  function allResolved() {
+    return [...wbHeats, ...lbHeats].every(h =>
+      (selections[h.id] || []).length === Math.ceil(h.players.length / 2)
+    );
+  }
+
+  function recordHistory() {
+    const rec = { wb: null, lb: null };
+    if (wbHeats.length > 0) {
+      rec.wb = { heats: wbHeats.map(h => ({ players: h.players, advancers: selections[h.id] || [], size: h.size })) };
+    }
+    if (lbHeats.length > 0) {
+      rec.lb = { heats: lbHeats.map(h => ({ players: h.players, advancers: selections[h.id] || [], size: h.size })) };
+    }
+    setStageHistory(prev => [...prev, rec]);
+  }
+
+  function advanceStage() {
+    if (!allResolved()) return;
+    recordHistory();
+    let newWb = [], wbDr = [];
+    for (const h of wbHeats) {
+      const sel = selections[h.id] || [];
+      newWb.push(...sel);
+      wbDr.push(...h.players.filter(p => !sel.includes(p)));
+    }
+    let newLbSurv = [], newElim = [];
+    for (const h of lbHeats) {
+      const sel = selections[h.id] || [];
+      newLbSurv.push(...sel);
+      newElim.push(...h.players.filter(p => !sel.includes(p)));
+    }
+    const updElim = [...eliminated, ...newElim];
+    let nextWbChamp = wbChamp;
+    if (!wbChamp && newWb.length === 1) { nextWbChamp = newWb[0]; newWb = []; }
+    const lbPool = [...newLbSurv, ...wbDr];
+    let nextLbChamp = lbChamp;
+    if (nextWbChamp && lbPool.length === 1) nextLbChamp = lbPool[0];
+    const nextIdx = currentStageIdx + 1;
+    if (nextWbChamp && nextLbChamp) {
+      setWbChamp(nextWbChamp); setLbChamp(nextLbChamp); setEliminated(updElim);
+      setWbHeats([]); setLbHeats([]); setCurrentStageIdx(nextIdx);
+      setPhase("grandFinal"); setStageNum(s => s + 1);
+      return;
+    }
+    let nwH = [];
+    if (newWb.length >= 2) { nwH = partition(newWb).heats; }
+    let nlH = [];
+    if (lbPool.length >= 2) { nlH = partition(lbPool).heats; }
+    setEliminated(updElim);
+    setWbChamp(nextWbChamp); setLbChamp(nextLbChamp);
+    setWbHeats(nwH); setLbHeats(nlH);
+    setSelections({}); setStageNum(s => s + 1); setCurrentStageIdx(nextIdx);
+  }
+
+  function resolveGF() {
+    if (!gfSel) return;
+    setChampion(gfSel); setPhase("complete");
+  }
+
+  const bg = {
+    minHeight: "100vh",
+    background: "linear-gradient(170deg,#05000d 0%,#0a0020 40%,#10003a 100%)",
+    color: "#eee", fontFamily: "Rajdhani,sans-serif", position: "relative", overflow: "hidden",
+  };
+  const wrap = { position: "relative", zIndex: 1, maxWidth: 760, margin: "0 auto", padding: "28px 16px" };
+  const inputCount = nameInput.split("\n").map(s => s.trim()).filter(Boolean).length;
+  const canStart = new Set(nameInput.split("\n").map(s => s.trim()).filter(Boolean)).size >= 4;
+
+  return (
+    <div style={bg}>
+      <Stars />
+      <div style={wrap}>
+        <div style={{
+          fontFamily: "Orbitron", fontWeight: 900, fontSize: 24, textAlign: "center",
+          background: `linear-gradient(90deg,${NEON.magenta},${NEON.orange},${NEON.yellow},${NEON.lime},${NEON.cyan},${NEON.purple},${NEON.magenta})`,
+          backgroundSize: "200% auto", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+          marginBottom: 4,
+        }}>TOURNAMENT BRACKET</div>
+        <div style={{
+          fontFamily: "Orbitron", fontSize: 11, color: NEON.cyan, textAlign: "center",
+          letterSpacing: 4, marginBottom: 24, opacity: 0.7,
+        }}>Double Elimination Generator</div>
+
+        {phase === "input" && (
+          <div style={{
+            background: "rgba(10,0,30,0.8)", border: `2px solid ${NEON.purple}44`,
+            borderRadius: 16, padding: 24, boxShadow: glow(NEON.purple, 10),
+            animation: "fadeIn 0.5s ease-out",
+          }}>
+            <label style={{
+              fontFamily: "Orbitron", fontSize: 12, color: NEON.cyan, letterSpacing: 2,
+              display: "block", marginBottom: 10,
+            }}>ENTER PLAYER NAMES <span style={{ color: "#666" }}>(one per line, min 4)</span></label>
+            <textarea value={nameInput} onChange={e => setNameInput(e.target.value)} rows={8}
+              placeholder={"Player 1\nPlayer 2\nPlayer 3\nPlayer 4\nPlayer 5\nPlayer 6\nPlayer 7\nPlayer 8"}
+              style={{
+                width: "100%", boxSizing: "border-box", background: "rgba(0,0,0,0.5)",
+                border: `1px solid ${NEON.cyan}33`, borderRadius: 10, padding: 14,
+                color: "#eee", fontFamily: "Rajdhani", fontSize: 16, lineHeight: 1.6,
+                resize: "vertical", outline: "none",
+              }} />
+            {inputCount > 0 && (
+              <div style={{
+                marginTop: 10, padding: "8px 12px", borderRadius: 8,
+                background: "rgba(0,0,0,0.3)", fontFamily: "Rajdhani", fontSize: 13,
+                color: canStart ? NEON.mint : NEON.orange,
+                display: "flex", justifyContent: "space-between",
+              }}>
+                <span>{inputCount} player{inputCount !== 1 ? "s" : ""} entered</span>
+                {canStart && (() => {
+                  const p = partitionCount(inputCount);
+                  const h4 = p.heats.filter(h => h === 4).length;
+                  const h3 = p.heats.filter(h => h === 3).length;
+                  const h2 = p.heats.filter(h => h === 2).length;
+                  const parts = [];
+                  if (h4) parts.push(`${h4}×4P`);
+                  if (h3) parts.push(`${h3}×3P`);
+                  if (h2) parts.push(`${h2}×2P`);
+                  return <span>R1 heats: {parts.join(" + ")} · 0 byes</span>;
+                })()}
+              </div>
+            )}
+            <div style={{ textAlign: "center", marginTop: 18 }}>
+              <button onClick={startTournament} disabled={!canStart} style={{
+                fontFamily: "Orbitron", fontWeight: 700, fontSize: 15, padding: "12px 36px",
+                background: "transparent",
+                border: `2px solid ${canStart ? NEON.lime : "#333"}`,
+                color: canStart ? NEON.lime : "#444", borderRadius: 10,
+                cursor: canStart ? "pointer" : "not-allowed", letterSpacing: 2,
+                boxShadow: canStart ? glow(NEON.lime, 6) : "none",
+              }}>🏁 GENERATE BRACKET</button>
+            </div>
+            <div style={{ marginTop: 14, fontSize: 13, color: "#666", textAlign: "center" }}>
+              Double elimination · Heats of 2, 3, or 4 · Zero byes · Everyone plays at least twice
+            </div>
+          </div>
+        )}
+
+        {phase !== "input" && bracketShape.length > 0 && (
+          <BracketDiagram shape={bracketShape} history={stageHistory}
+            currentIdx={currentStageIdx} phase={phase} />
+        )}
+
+        {phase === "tournament" && (
+          <div style={{ animation: "fadeIn 0.4s ease-out" }}>
+            <div style={{
+              fontFamily: "Orbitron", fontSize: 18, textAlign: "center",
+              color: NEON.yellow, marginBottom: 4, textShadow: `0 0 12px ${NEON.yellow}88`,
+            }}>⚡ STAGE {stageNum}</div>
+            <div style={{
+              textAlign: "center", fontFamily: "Rajdhani", fontSize: 13,
+              color: "#666", marginBottom: 20,
+            }}>Select the top finishers in each heat, then advance</div>
+
+            {wbHeats.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{
+                  fontFamily: "Orbitron", fontSize: 13, color: NEON.cyan,
+                  letterSpacing: 3, marginBottom: 10, paddingBottom: 6,
+                  borderBottom: `1px solid ${NEON.cyan}33`,
+                }}>🏆 WINNERS BRACKET</div>
+                {wbHeats.map(h => (
+                  <HeatCard key={h.id} heat={h} bracket="WB" selections={selections}
+                    onToggle={toggleSel} neonColor={NEON.cyan} />
+                ))}
+              </div>
+            )}
+
+            {lbHeats.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{
+                  fontFamily: "Orbitron", fontSize: 13, color: NEON.magenta,
+                  letterSpacing: 3, marginBottom: 10, paddingBottom: 6,
+                  borderBottom: `1px solid ${NEON.magenta}33`,
+                }}>💀 LOSERS BRACKET</div>
+                {lbHeats.map(h => (
+                  <HeatCard key={h.id} heat={h} bracket="LB" selections={selections}
+                    onToggle={toggleSel} neonColor={NEON.magenta} />
+                ))}
+              </div>
+            )}
+
+            <PlayerList title="Eliminated" players={eliminated} color="#555" icon="✕" />
+
+            <div style={{ textAlign: "center", marginTop: 20 }}>
+              <button onClick={advanceStage} disabled={!allResolved()} style={{
+                fontFamily: "Orbitron", fontWeight: 700, fontSize: 14, padding: "12px 32px",
+                background: allResolved() ? `${NEON.orange}22` : "transparent",
+                border: `2px solid ${allResolved() ? NEON.orange : "#333"}`,
+                color: allResolved() ? NEON.orange : "#444", borderRadius: 10,
+                cursor: allResolved() ? "pointer" : "not-allowed", letterSpacing: 2,
+                boxShadow: allResolved() ? glow(NEON.orange, 6) : "none",
+              }}>ADVANCE →</button>
+            </div>
+          </div>
+        )}
+
+        {phase === "grandFinal" && (
+          <div style={{ animation: "fadeIn 0.5s ease-out", textAlign: "center" }}>
+            <div style={{
+              fontFamily: "Orbitron", fontSize: 22, color: NEON.yellow,
+              marginBottom: 6, textShadow: `0 0 20px ${NEON.yellow}`,
+            }}>⚡ GRAND FINAL ⚡</div>
+            <div style={{ fontSize: 13, color: "#888", marginBottom: 24, fontFamily: "Rajdhani" }}>
+              WB Champion vs. LB Champion
+            </div>
+            <div style={{
+              background: "rgba(10,0,30,0.85)", border: `2px solid ${NEON.yellow}44`,
+              borderRadius: 14, padding: 20, display: "inline-block",
+              boxShadow: glow(NEON.yellow, 10), minWidth: 280,
+            }}>
+              {[wbChamp, lbChamp].map(p => {
+                const isWb = p === wbChamp;
+                const on = gfSel === p;
+                return (
+                  <button key={p} onClick={() => setGfSel(p)} style={{
+                    display: "block", width: "100%", padding: "14px 20px", marginBottom: 8,
+                    background: on ? `${NEON.lime}22` : "rgba(255,255,255,0.03)",
+                    border: `2px solid ${on ? NEON.lime : "rgba(255,255,255,0.1)"}`,
+                    borderRadius: 10, color: on ? NEON.lime : "#ccc",
+                    fontFamily: "Rajdhani", fontSize: 18, fontWeight: on ? 700 : 400,
+                    cursor: "pointer", textAlign: "left", transition: "all 0.2s",
+                    boxShadow: on ? glow(NEON.lime, 6) : "none",
+                  }}>
+                    <span style={{
+                      fontSize: 10, fontFamily: "Orbitron", letterSpacing: 2,
+                      color: isWb ? NEON.cyan : NEON.magenta, display: "block", marginBottom: 2,
+                    }}>{isWb ? "WB CHAMPION" : "LB CHAMPION"}</span>
+                    {on ? "★ " : "○ "}{p}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 24 }}>
+              <button onClick={resolveGF} disabled={!gfSel} style={{
+                fontFamily: "Orbitron", fontWeight: 700, fontSize: 14, padding: "12px 32px",
+                background: gfSel ? `${NEON.yellow}22` : "transparent",
+                border: `2px solid ${gfSel ? NEON.yellow : "#333"}`,
+                color: gfSel ? NEON.yellow : "#444", borderRadius: 10,
+                cursor: gfSel ? "pointer" : "not-allowed", letterSpacing: 2,
+                boxShadow: gfSel ? glow(NEON.yellow, 8) : "none",
+              }}>🏁 CROWN CHAMPION</button>
+            </div>
+            <div style={{ marginTop: 20 }}>
+              <PlayerList title="Eliminated" players={eliminated} color="#555" icon="✕" />
+            </div>
+          </div>
+        )}
+
+        {phase === "complete" && (
+          <div style={{ animation: "fadeIn 0.6s ease-out", textAlign: "center" }}>
+            <div style={{
+              fontFamily: "Orbitron", fontSize: 14, color: NEON.yellow,
+              letterSpacing: 4, marginBottom: 8, animation: "pulse 2s ease-in-out infinite",
+            }}>🏆 TOURNAMENT CHAMPION 🏆</div>
+            <div style={{
+              fontFamily: "Orbitron", fontSize: 36, fontWeight: 900,
+              color: NEON.yellow, textShadow: `0 0 30px ${NEON.yellow},0 0 60px ${NEON.orange}88`,
+              marginBottom: 32, animation: "pulse 2s ease-in-out infinite",
+            }}>{champion}</div>
+            <PlayerList title="Runner Up"
+              players={[champion === wbChamp ? lbChamp : wbChamp].filter(Boolean)}
+              color={NEON.cyan} icon="🥈" />
+            <PlayerList title="Eliminated" players={eliminated} color="#555" icon="✕" />
+            <div style={{ marginTop: 30 }}>
+              <button onClick={() => {
+                setPhase("input"); setNameInput(""); setBracketShape([]); setStageHistory([]);
+              }} style={{
+                fontFamily: "Orbitron", fontWeight: 700, fontSize: 13, padding: "10px 28px",
+                background: "transparent", border: `2px solid ${NEON.purple}`,
+                color: NEON.purple, borderRadius: 10, cursor: "pointer", letterSpacing: 2,
+                boxShadow: glow(NEON.purple, 4),
+              }}>NEW TOURNAMENT</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<TournamentBracketGenerator />);
+    </script>
+</body>
+
+</html>
