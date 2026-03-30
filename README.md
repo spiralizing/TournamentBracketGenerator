@@ -18,6 +18,8 @@ A double-elimination bracket generator for tournaments of any size. Enter player
 
 **Host it or visit the associated webapp for this repo.** 
 
+https://spiralizing.github.io/TournamentBracketGenerator/
+
 ---
 
 ## Bracket Format Design
